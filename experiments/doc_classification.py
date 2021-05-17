@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import argparse
+import os
+
 from farm.data_handler.data_silo import DataSilo
 from farm.data_handler.processor import TextClassificationProcessor
 from farm.eval import Evaluator
@@ -11,7 +14,6 @@ from farm.train import EarlyStopping
 from farm.utils import set_all_seeds, MLFlowLogger, initialize_device_settings
 from ray import tune
 import yaml
-import fire
 
 from custom_models.evaluation.ExtendedEvaluator import ExtendedEvaluator
 from custom_models.training.ExtendedAdaptiveModel import ExtendedAdaptiveModel
@@ -26,6 +28,9 @@ logger = utils.get_logger(__name__)
 def doc_classification(task_config,
                        model_name_or_path,
                        cache_dir,
+                       data_dir,
+                       save_dir,
+                       model_dir,
                        run_name="0",
                        lr=1e-05,
                        warmup_steps=5000,
@@ -54,17 +59,15 @@ def doc_classification(task_config,
     # Load task config
     task_config = yaml.safe_load(open(task_config))
 
-    data_dir = Path(task_config["data"]["data_dir"])
-    save_dir = utils.init_save_dir(task_config["output_dir"],
-                                   task_config["experiment_name"],
-                                   run_name,
-                                   tune.session.get_trial_name() if do_hpo else None)
+    data_dir = data_dir
+    save_dir = save_dir
+    model_dir = model_dir
 
     # Create label list from args list or (for large label lists) create from file by splitting by space
     if isinstance(task_config["data"]["label_list"], list):
         label_list = task_config["data"]["label_list"]
     else:
-        with open(data_dir / task_config["data"]["label_list"]) as code_file:
+        with open(data_dir / 'labels' / task_config["data"]["label_list"]) as code_file:
             label_list = code_file.read().split(" ")
 
     # Register Outcome Metrics
@@ -161,7 +164,7 @@ def doc_classification(task_config,
             early_stopping = EarlyStopping(
                 mode=early_stopping_mode,
                 min_delta=0.0001,
-                save_dir=save_dir,
+                save_dir=model_dir,
                 metric=early_stopping_metric,
                 patience=early_stopping_patience
             )
@@ -190,13 +193,13 @@ def doc_classification(task_config,
         trainer.train(score_callback=score_callback if do_hpo else None)
 
         # 9. Save model if not saved in early stopping
-        model.save(save_dir / "final_model")
-        processor.save(save_dir / "final_model")
+        model.save(model_dir / "final_model")
+        processor.save(model_dir / "final_model")
 
     if do_eval:
         # Load newly trained model or existing model
         if do_train:
-            model_dir = save_dir
+            model_dir = model_dir
         else:
             model_dir = Path(model_name_or_path)
 
@@ -240,4 +243,27 @@ def doc_classification(task_config,
 
 
 if __name__ == '__main__':
-    fire.Fire(doc_classification)
+
+    parser = argparse.ArgumentParser()
+    
+    # retrieve the hyperparameters we set from the client (with some defaults)
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--learning-rate", type=float, default=1e-05)
+    parser.add_argument("--task-config", type-str, default='configs/example_config_mp.yaml')
+    parser.add_argument("--model-name-or-path", type=str, default='distilbert-base-uncased')
+    
+    # Data, model, and output directories These are required.
+    parser.add_argument("--output-dir", type=str, default=os.environ["SM_OUTPUT_DIR"])
+    parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
+    parser.add_argument("--train", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
+    parser.add_argument("--test", type=str, default=os.environ["SM_CHANNEL_TEST"])
+    
+    doc_classification(task_config=args.task_config, 
+                      epochs=args.epochs, 
+                      batch_size=args.batch_size, 
+                      lr=args.learning_rate,
+                      data_dir=args.train,
+                      save_dir=args.output_dir,
+                      model_dir=args.model_dir,
+                      model_name_or_path=args.mode_name_or_path)
