@@ -193,8 +193,8 @@ def doc_classification(task_config,
         trainer.train(score_callback=score_callback if do_hpo else None)
 
         # 9. Save model if not saved in early stopping
-        model.save(model_dir / "final_model")
-        processor.save(model_dir / "final_model")
+        model.save(model_dir + "/final_model")
+        processor.save(model_dir +  "/final_model")
 
     if do_eval:
         # Load newly trained model or existing model
@@ -220,7 +220,7 @@ def doc_classification(task_config,
 
         # Log results
         utils.log_results(results, dataset_name="test", steps=len(evaluator_test.data_loader),
-                          save_path=model_dir / "eval_results.txt")
+                          save_path=model_dir + "/eval_results.txt")
 
         if print_preds:
             # Print model test predictions
@@ -235,7 +235,7 @@ def doc_classification(task_config,
             )
             dev_results = evaluator_dev.eval(model, return_preds_and_labels=True)
             utils.log_results(dev_results, dataset_name="dev", steps=len(evaluator_dev.data_loader),
-                              save_path=model_dir / "eval_dev_results.txt")
+                              save_path=model_dir  +"/eval_dev_results.txt")
 
             # Print model dev predictions
             utils.save_predictions(dev_results, save_dir=model_dir, multilabel=task_config["multilabel"],
@@ -250,7 +250,7 @@ if __name__ == '__main__':
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=1e-05)
-    parser.add_argument("--task-config", type-str, default='configs/example_config_mp.yaml')
+    parser.add_argument("--task-config", type=str, default='configs/example_config_mp.yaml')
     parser.add_argument("--model-name-or-path", type=str, default='distilbert-base-uncased')
     
     # Data, model, and output directories These are required.
@@ -259,6 +259,8 @@ if __name__ == '__main__':
     parser.add_argument("--train", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
     parser.add_argument("--test", type=str, default=os.environ["SM_CHANNEL_TEST"])
     
+    args, _ = parser.parse_known_args()
+    
     doc_classification(task_config=args.task_config, 
                       epochs=args.epochs, 
                       batch_size=args.batch_size, 
@@ -266,4 +268,5 @@ if __name__ == '__main__':
                       data_dir=args.train,
                       save_dir=args.output_dir,
                       model_dir=args.model_dir,
-                      model_name_or_path=args.mode_name_or_path)
+                      model_name_or_path=args.model_name_or_path,
+                      cache_dir=args.output_dir)
