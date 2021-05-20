@@ -110,7 +110,7 @@ def log_results(results, dataset_name, steps, logging=True, print=True, save_pat
                     logger.info(metric_log)
                 else:
                     if not metric_name in ["preds", "probs", "labels"] and not metric_name.startswith("_"):
-                        metric_log = "{}: {}".format(metric_name, metric_val)
+                        metric_log = "{}: {};".format(metric_name, metric_val)
                         logger.info(metric_log)
 
             if save_path and metric_log:

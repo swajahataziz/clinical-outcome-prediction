@@ -2,6 +2,7 @@ from pathlib import Path
 
 import argparse
 import os
+import json
 
 from farm.data_handler.data_silo import DataSilo
 from farm.data_handler.processor import TextClassificationProcessor
